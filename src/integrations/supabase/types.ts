@@ -14,7 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      decision_logs: {
+        Row: {
+          correct_answer: string
+          created_at: string
+          id: string
+          is_correct: boolean
+          key_takeaway: string | null
+          question: string
+          scenario: string
+          tone: string | null
+          user_answer: string
+        }
+        Insert: {
+          correct_answer: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          key_takeaway?: string | null
+          question: string
+          scenario: string
+          tone?: string | null
+          user_answer: string
+        }
+        Update: {
+          correct_answer?: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          key_takeaway?: string | null
+          question?: string
+          scenario?: string
+          tone?: string | null
+          user_answer?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

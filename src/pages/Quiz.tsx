@@ -133,7 +133,7 @@ const Quiz = () => {
       setAiExplanation(data.feedback);
 
       /* ================= SAVE DECISION LOG ================= */
-      await supabase.from("decision_logs").insert({
+      await supabase.from("decision_logs" as any).insert({
         scenario: categoryNames[categoryId ?? ""] || "Unknown",
         question: currentScenario.question,
         user_answer:
