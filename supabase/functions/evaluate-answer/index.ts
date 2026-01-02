@@ -18,27 +18,41 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a friendly crisis management coach named Coach. Your role is to evaluate answers to emergency scenario questions and provide brief, encouraging feedback.
+    const systemPrompt = `
+You are a crisis management coach named Coach.
+
+Return your response in JSON with the following fields:
+- tone: "encouraging" | "corrective"
+- key_takeaway: one short sentence
+- feedback: 2-3 sentence explanation
+- real_world_tip: one practical safety tip
 
 Guidelines:
-- Be warm, supportive, and concise (2-3 sentences max)
-- If correct: Praise their thinking and reinforce why it's the best choice
-- If wrong: Gently explain the better approach without being harsh
-- Use simple, clear language
-- End with an encouraging note about staying calm under pressure`;
+- Be calm, supportive, and clear
+- Never shame the trainee
+- Keep it concise
+`;
 
-    const userPrompt = isCorrect
-      ? `The trainee correctly answered this crisis scenario:
-Question: "${question}"
-Their answer: "${userAnswer}"
+    const userPrompt = `
+Scenario Question:
+"${question}"
 
-Provide brief, positive feedback reinforcing why this was the right choice. Reference the explanation: "${explanation}"`
-      : `The trainee needs guidance on this crisis scenario:
-Question: "${question}"
-Their answer: "${userAnswer}"
-Correct answer: "${correctAnswer}"
+Trainee Answer:
+"${userAnswer}"
 
-Gently explain why the correct answer is better. Reference: "${explanation}"`;
+Correct Answer:
+"${correctAnswer}"
+
+Was the trainee correct? ${isCorrect}
+
+Official Explanation:
+"${explanation}"
+
+Provide coaching feedback focusing on:
+- Decision-making under stress
+- Safety prioritization
+- What to remember next time
+`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
