@@ -100,37 +100,59 @@ const Quiz = () => {
 
   const evaluateAnswer = async (answer: number) => {
     if (!currentScenario) return;
-    
+
     setIsLoading(true);
-    
+
     const isCorrect = answer === currentScenario.correctAnswer;
-    
+
     if (isCorrect) {
       setScore((prev) => prev + 20);
       setCorrectAnswers((prev) => prev + 1);
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke('evaluate-answer', {
-        body: {
-          question: currentScenario.question,
-          userAnswer: answer >= 0 ? currentScenario.options[answer] : "No answer (time expired)",
-          correctAnswer: currentScenario.options[currentScenario.correctAnswer],
-          isCorrect,
-          explanation: currentScenario.explanation,
-        },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "evaluate-answer",
+        {
+          body: {
+            question: currentScenario.question,
+            userAnswer:
+              answer >= 0
+                ? currentScenario.options[answer]
+                : "No answer (time expired)",
+            correctAnswer:
+              currentScenario.options[currentScenario.correctAnswer],
+            isCorrect,
+            explanation: currentScenario.explanation,
+          },
+        }
+      );
 
       if (error) throw error;
-      
+
       setAiExplanation(data.feedback);
+
+      /* ================= SAVE DECISION LOG ================= */
+      await supabase.from("decision_logs").insert({
+        scenario: categoryNames[categoryId ?? ""] || "Unknown",
+        question: currentScenario.question,
+        user_answer:
+          answer >= 0
+            ? currentScenario.options[answer]
+            : "No answer (time expired)",
+        correct_answer:
+          currentScenario.options[currentScenario.correctAnswer],
+        is_correct: isCorrect,
+        key_takeaway: data.key_takeaway ?? data.feedback,
+        tone: data.tone ?? (isCorrect ? "encouraging" : "corrective"),
+      });
+      /* ====================================================== */
     } catch (error) {
-      console.error('Error getting AI evaluation:', error);
-      // Fallback to stored explanation
+      console.error("AI evaluation failed:", error);
       setAiExplanation(
-        isCorrect 
+        isCorrect
           ? `Great job! ${currentScenario.explanation}`
-          : `The correct approach: ${currentScenario.explanation}`
+          : `Correct approach: ${currentScenario.explanation}`
       );
     } finally {
       setIsLoading(false);
@@ -192,6 +214,12 @@ const Quiz = () => {
     }
     
     setShowCompletionDialog(true);
+
+    /* ================= GO TO AAR ================= */
+    setTimeout(() => {
+      navigate("/after-action-report");
+    }, 800);
+    /* ============================================== */
   };
 
   if (!categoryId || !scenarios.length) {
