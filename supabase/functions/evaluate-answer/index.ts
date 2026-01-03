@@ -66,12 +66,14 @@ Return ONLY valid JSON with these fields:
 - key_takeaway: one short sentence
 - feedback: 2-3 sentence explanation
 - real_world_tip: one practical safety tip
+- consequence: one short sentence describing what might happen in real life if the trainee's choice was followed (e.g., "Running could trigger the animal's chase instinct, increasing injury risk.")
 
 Rules:
 - No markdown
 - No backticks
 - No extra text outside JSON
 - Be calm, supportive, and concise
+- The consequence should be realistic and educational
 `;
 
     /* ---------------- USER PROMPT ---------------- */
@@ -94,6 +96,7 @@ Focus on:
 - Decision-making under stress
 - Safety prioritization
 - What to remember next time
+- The realistic consequence of the trainee's specific choice
 `;
 
     /* ---------------- AI CALL ---------------- */
@@ -140,6 +143,9 @@ Focus on:
         feedback: explanation,
         real_world_tip:
           "Pause, assess your surroundings, and choose the safest option.",
+        consequence: isCorrect 
+          ? "Your choice helps maintain safety and control of the situation."
+          : "This choice could escalate the situation or increase risk of harm.",
       };
     }
 
@@ -158,6 +164,7 @@ Focus on:
           "You made an effort, and that matters. In real situations, slowing down your thinking helps you make safer choices.",
         real_world_tip:
           "Take a breath, observe carefully, and avoid sudden movements.",
+        consequence: "Every decision shapes the outcome—practice builds better instincts.",
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
