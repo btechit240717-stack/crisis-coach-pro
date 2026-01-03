@@ -25,6 +25,7 @@ export type Database = {
           scenario: string
           tone: string | null
           user_answer: string
+          user_id: string | null
         }
         Insert: {
           correct_answer: string
@@ -36,6 +37,7 @@ export type Database = {
           scenario: string
           tone?: string | null
           user_answer: string
+          user_id?: string | null
         }
         Update: {
           correct_answer?: string
@@ -47,6 +49,70 @@ export type Database = {
           scenario?: string
           tone?: string | null
           user_answer?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          phone: string | null
+          role: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          phone?: string | null
+          role?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          role?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_progress: {
+        Row: {
+          completed_categories: string[]
+          created_at: string
+          id: string
+          level: string
+          medals: string[]
+          score: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_categories?: string[]
+          created_at?: string
+          id?: string
+          level?: string
+          medals?: string[]
+          score?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_categories?: string[]
+          created_at?: string
+          id?: string
+          level?: string
+          medals?: string[]
+          score?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
