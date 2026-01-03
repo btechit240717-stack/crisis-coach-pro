@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { DecisionPatternInsight } from "@/components/training/DecisionPatternInsight";
+import { ConfidenceMeter } from "@/components/training/ConfidenceMeter";
 
 interface DecisionLog {
   id: string;
@@ -156,6 +158,12 @@ const AfterActionReport = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Decision Pattern Insight */}
+        <DecisionPatternInsight logs={logs} />
+
+        {/* Confidence Under Pressure Meter */}
+        <ConfidenceMeter logs={logs} />
 
         {/* Key Takeaways */}
         {keyTakeaways.length > 0 && (

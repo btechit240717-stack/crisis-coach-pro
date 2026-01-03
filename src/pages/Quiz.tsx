@@ -21,6 +21,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { TrainingModeToggle } from "@/components/training/TrainingModeToggle";
+import { ConsequenceDisplay } from "@/components/training/ConsequenceDisplay";
 
 const categoryNames: { [key: string]: string } = {
   "women-safety": "Women Safety",
@@ -50,9 +52,12 @@ const Quiz = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
+  const [aiConsequence, setAiConsequence] = useState<string | null>(null);
   const [score, setScore] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
+  const [isAssessmentMode, setIsAssessmentMode] = useState(false);
+  const [quizStarted, setQuizStarted] = useState(false);
 
   const scenarios = categoryId ? scenariosByCategory[categoryId] || [] : [];
   const currentScenario = scenarios[currentQuestion];
@@ -128,6 +133,7 @@ const Quiz = () => {
       if (error) throw error;
 
       setAiExplanation(data.feedback);
+      setAiConsequence(data.consequence || null);
 
       // Save decision log with user_id
       await supabase.from("decision_logs").insert({
@@ -172,6 +178,7 @@ const Quiz = () => {
       setIsAnswered(false);
       setShowResult(false);
       setAiExplanation(null);
+      setAiConsequence(null);
       setTimeLeft(30);
     } else {
       handleQuizComplete();
@@ -292,15 +299,40 @@ const Quiz = () => {
       </header>
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
+        {/* Mode Toggle - Only show before quiz starts */}
+        {!quizStarted && (
+          <div className="mb-6 animate-slide-up">
+            <TrainingModeToggle 
+              isAssessmentMode={isAssessmentMode} 
+              onModeChange={setIsAssessmentMode} 
+            />
+            <div className="flex justify-center mt-4">
+              <Button 
+                onClick={() => setQuizStarted(true)}
+                className="bg-primary hover:bg-primary/90"
+              >
+                Start Quiz
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {quizStarted && (
+          <>
         {/* Progress Bar */}
         <div className="mb-8 animate-slide-up">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm text-muted-foreground">
               Question {currentQuestion + 1} of {totalQuestions}
             </span>
-            <Badge variant="outline" className="font-mono">
-              Score: {score}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={isAssessmentMode ? "secondary" : "outline"} className="text-xs">
+                {isAssessmentMode ? "Assessment" : "Training"}
+              </Badge>
+              <Badge variant="outline" className="font-mono">
+                Score: {score}
+              </Badge>
+            </div>
           </div>
           <Progress value={progress} className="h-2" />
         </div>
@@ -384,15 +416,15 @@ const Quiz = () => {
           </CardContent>
         </Card>
 
-        {/* AI Explanation */}
-        {showResult && (
+        {/* AI Explanation - Only show in Training Mode */}
+        {showResult && !isAssessmentMode && (
           <Card className="glass-card animate-scale-in border-2 border-primary/20">
             <CardContent className="p-6">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <Shield className="w-5 h-5 text-primary" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <h4 className="font-semibold mb-2">Coach's Feedback</h4>
                   {isLoading ? (
                     <div className="flex items-center gap-2 text-muted-foreground">
@@ -400,12 +432,33 @@ const Quiz = () => {
                       <span>Analyzing your response...</span>
                     </div>
                   ) : (
-                    <p className="text-muted-foreground leading-relaxed">
-                      {aiExplanation}
-                    </p>
+                    <>
+                      <p className="text-muted-foreground leading-relaxed">
+                        {aiExplanation}
+                      </p>
+                      {aiConsequence && (
+                        <ConsequenceDisplay consequence={aiConsequence} />
+                      )}
+                    </>
                   )}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Assessment Mode - minimal feedback */}
+        {showResult && isAssessmentMode && (
+          <Card className="glass-card animate-scale-in border-2 border-muted/50">
+            <CardContent className="p-6 text-center">
+              <p className="text-muted-foreground">
+                {selectedAnswer === currentScenario?.correctAnswer 
+                  ? "✓ Answer recorded" 
+                  : "✓ Answer recorded"}
+              </p>
+              <p className="text-xs text-muted-foreground/70 mt-2">
+                Full feedback will be shown in your After-Action Report
+              </p>
             </CardContent>
           </Card>
         )}
@@ -431,6 +484,8 @@ const Quiz = () => {
               )}
             </Button>
           </div>
+        )}
+          </>
         )}
       </div>
 
