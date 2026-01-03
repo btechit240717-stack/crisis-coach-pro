@@ -9,6 +9,7 @@ import {
   Loader2, ChevronRight, Trophy, RotateCcw
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { scenariosByCategory } from "@/data/scenarios";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -20,18 +21,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-interface UserData {
-  name: string;
-  email: string;
-  phone: string;
-  role: string;
-  score: number;
-  level: string;
-  completedCategories: string[];
-  medals: string[];
-  joinedAt: string;
-}
 
 const categoryNames: { [key: string]: string } = {
   "women-safety": "Women Safety",
@@ -52,6 +41,7 @@ const Quiz = () => {
   const { categoryId } = useParams<{ categoryId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
   
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -68,6 +58,13 @@ const Quiz = () => {
   const currentScenario = scenarios[currentQuestion];
   const totalQuestions = scenarios.length;
   const progress = ((currentQuestion + 1) / totalQuestions) * 100;
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth");
+    }
+  }, [user, authLoading, navigate]);
 
   // Timer effect
   useEffect(() => {
@@ -94,12 +91,12 @@ const Quiz = () => {
         description: "The correct answer has been revealed.",
         variant: "destructive",
       });
-      evaluateAnswer(-1); // -1 indicates timeout
+      evaluateAnswer(-1);
     }
   }, [isAnswered, toast]);
 
   const evaluateAnswer = async (answer: number) => {
-    if (!currentScenario) return;
+    if (!currentScenario || !user) return;
 
     setIsLoading(true);
 
@@ -132,8 +129,9 @@ const Quiz = () => {
 
       setAiExplanation(data.feedback);
 
-      /* ================= SAVE DECISION LOG ================= */
-      await supabase.from("decision_logs" as any).insert({
+      // Save decision log with user_id
+      await supabase.from("decision_logs").insert({
+        user_id: user.id,
         scenario: categoryNames[categoryId ?? ""] || "Unknown",
         question: currentScenario.question,
         user_answer:
@@ -146,7 +144,6 @@ const Quiz = () => {
         key_takeaway: data.key_takeaway ?? data.feedback,
         tone: data.tone ?? (isCorrect ? "encouraging" : "corrective"),
       });
-      /* ====================================================== */
     } catch (error) {
       console.error("AI evaluation failed:", error);
       setAiExplanation(
@@ -177,50 +174,82 @@ const Quiz = () => {
       setAiExplanation(null);
       setTimeLeft(30);
     } else {
-      // Quiz completed
       handleQuizComplete();
     }
   };
 
-  const handleQuizComplete = () => {
-    // Update user data
-    const userData = localStorage.getItem("crisiscoach_user");
-    if (userData && categoryId) {
-      const user: UserData = JSON.parse(userData);
+  const handleQuizComplete = async () => {
+    if (!user || !categoryId) return;
+
+    try {
+      // Fetch current progress
+      const { data: currentProgress, error: fetchError } = await supabase
+        .from("user_progress")
+        .select("score, level, completed_categories, medals")
+        .eq("user_id", user.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Calculate new values
+      const newScore = (currentProgress?.score || 0) + score;
+      const completedCategories = currentProgress?.completed_categories || [];
+      const medals = currentProgress?.medals || [];
       
-      // Add category to completed list if not already there
-      if (!user.completedCategories.includes(categoryId)) {
-        user.completedCategories.push(categoryId);
+      if (!completedCategories.includes(categoryId)) {
+        completedCategories.push(categoryId);
       }
-      
-      // Add score
-      user.score += score;
-      
-      // Update level based on total score
-      if (user.score >= 800) user.level = "platinum";
-      else if (user.score >= 500) user.level = "diamond";
-      else if (user.score >= 250) user.level = "gold";
-      else if (user.score >= 100) user.level = "silver";
-      
+
+      // Determine level based on score
+      let newLevel = "bronze";
+      if (newScore >= 800) newLevel = "platinum";
+      else if (newScore >= 500) newLevel = "diamond";
+      else if (newScore >= 250) newLevel = "gold";
+      else if (newScore >= 100) newLevel = "silver";
+
       // Award medal if perfect score
       if (correctAnswers === totalQuestions) {
         const medalName = `${categoryNames[categoryId]} Master`;
-        if (!user.medals.includes(medalName)) {
-          user.medals.push(medalName);
+        if (!medals.includes(medalName)) {
+          medals.push(medalName);
         }
       }
-      
-      localStorage.setItem("crisiscoach_user", JSON.stringify(user));
+
+      // Update progress in database
+      const { error: updateError } = await supabase
+        .from("user_progress")
+        .update({
+          score: newScore,
+          level: newLevel,
+          completed_categories: completedCategories,
+          medals: medals,
+        })
+        .eq("user_id", user.id);
+
+      if (updateError) throw updateError;
+    } catch (error) {
+      console.error("Error updating progress:", error);
+      toast({
+        title: "Error saving progress",
+        description: "Your quiz score may not have been saved.",
+        variant: "destructive",
+      });
     }
     
     setShowCompletionDialog(true);
 
-    /* ================= GO TO AAR ================= */
     setTimeout(() => {
       navigate("/after-action-report");
     }, 800);
-    /* ============================================== */
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!categoryId || !scenarios.length) {
     return (

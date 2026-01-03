@@ -5,9 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   Shield, ArrowLeft, ShieldAlert, Dog, Car, School, Cloud, Flame, 
-  Brain, FlaskConical, Leaf, Home, Heart, Zap, Phone, HardHat,
-  Lock, CheckCircle
+  Brain, FlaskConical, Leaf, Home, Heart, Zap, Loader2,
+  CheckCircle
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const categories = [
   { 
@@ -110,22 +112,52 @@ const categories = [
 
 const Categories = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [completedCategories, setCompletedCategories] = useState<string[]>([]);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const userData = localStorage.getItem("crisiscoach_user");
-    if (!userData) {
-      navigate("/");
+    if (!authLoading && !user) {
+      navigate("/auth");
       return;
     }
-    const user = JSON.parse(userData);
-    setCompletedCategories(user.completedCategories || []);
-  }, [navigate]);
+
+    if (user) {
+      fetchProgress();
+    }
+  }, [user, authLoading, navigate]);
+
+  const fetchProgress = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("user_progress")
+        .select("completed_categories")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      setCompletedCategories(data?.completed_categories || []);
+    } catch (error) {
+      console.error("Error fetching progress:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCategoryClick = (categoryId: string) => {
     navigate(`/quiz/${categoryId}`);
   };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

@@ -14,8 +14,10 @@ import {
   FileText,
   RotateCcw,
   Home,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface DecisionLog {
   id: string;
@@ -31,23 +33,34 @@ interface DecisionLog {
 
 const AfterActionReport = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [logs, setLogs] = useState<DecisionLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDecisionLogs();
-  }, []);
+    if (!authLoading && !user) {
+      navigate("/auth");
+      return;
+    }
+
+    if (user) {
+      fetchDecisionLogs();
+    }
+  }, [user, authLoading, navigate]);
 
   const fetchDecisionLogs = async () => {
+    if (!user) return;
+
     try {
       const { data, error } = await supabase
-        .from("decision_logs" as any)
+        .from("decision_logs")
         .select("*")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(50);
 
       if (error) throw error;
-      setLogs((data as unknown as DecisionLog[]) || []);
+      setLogs(data || []);
     } catch (error) {
       console.error("Error fetching decision logs:", error);
     } finally {
@@ -64,6 +77,14 @@ const AfterActionReport = () => {
     .filter((log) => log.key_takeaway)
     .map((log) => log.key_takeaway)
     .slice(0, 5);
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -174,11 +195,7 @@ const AfterActionReport = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading decisions...
-              </div>
-            ) : logs.length === 0 ? (
+            {logs.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-muted-foreground mb-4">
                   No decisions logged yet. Complete a quiz to see your report!

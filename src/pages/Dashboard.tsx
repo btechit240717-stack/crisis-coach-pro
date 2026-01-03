@@ -8,20 +8,23 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { 
   Shield, Trophy, Medal, Star, Play, ArrowLeft,
-  TrendingUp, Target, Crown, Gem, Award, Share2, Users
+  TrendingUp, Target, Crown, Gem, Award, Share2, Users, Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
-interface UserData {
+interface Profile {
   name: string;
-  email: string;
-  phone: string;
+  phone: string | null;
   role: string;
+}
+
+interface UserProgress {
   score: number;
   level: string;
-  completedCategories: string[];
+  completed_categories: string[];
   medals: string[];
-  joinedAt: string;
 }
 
 const levelConfig = {
@@ -43,25 +46,90 @@ const leaderboard = [
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<UserData | null>(null);
+  const { user, loading: authLoading, signOut } = useAuth();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [progress, setProgress] = useState<UserProgress | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const userData = localStorage.getItem("crisiscoach_user");
-    if (!userData) {
-      navigate("/");
+    if (!authLoading && !user) {
+      navigate("/auth");
       return;
     }
-    setUser(JSON.parse(userData));
-  }, [navigate]);
 
-  if (!user) return null;
+    if (user) {
+      fetchUserData();
+    }
+  }, [user, authLoading, navigate]);
 
-  const currentLevel = levelConfig[user.level as keyof typeof levelConfig] || levelConfig.bronze;
+  const fetchUserData = async () => {
+    if (!user) return;
+
+    try {
+      // Fetch profile
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("name, phone, role")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+      
+      // Fetch progress
+      const { data: progressData, error: progressError } = await supabase
+        .from("user_progress")
+        .select("score, level, completed_categories, medals")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (progressError) throw progressError;
+
+      setProfile(profileData);
+      setProgress(progressData);
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      toast({
+        title: "Error loading data",
+        description: "Please try refreshing the page.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!profile || !progress) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <h2 className="text-xl font-bold mb-4">Profile not found</h2>
+          <Button onClick={() => navigate("/auth")}>
+            Go to Login
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  const currentLevel = levelConfig[progress.level as keyof typeof levelConfig] || levelConfig.bronze;
   const LevelIcon = currentLevel.icon;
-  const progress = ((user.score - currentLevel.minScore) / (currentLevel.maxScore - currentLevel.minScore)) * 100;
+  const levelProgress = ((progress.score - currentLevel.minScore) / (currentLevel.maxScore - currentLevel.minScore)) * 100;
 
   const handleShare = () => {
-    const shareText = `🛡️ I'm training crisis management skills on CrisisCoach!\n\n📊 Score: ${user.score}\n🏅 Level: ${user.level.charAt(0).toUpperCase() + user.level.slice(1)}\n\nJoin me and learn to stay calm under pressure!`;
+    const shareText = `🛡️ I'm training crisis management skills on CrisisCoach!\n\n📊 Score: ${progress.score}\n🏅 Level: ${progress.level.charAt(0).toUpperCase() + progress.level.slice(1)}\n\nJoin me and learn to stay calm under pressure!`;
     
     if (navigator.share) {
       navigator.share({
@@ -76,11 +144,6 @@ const Dashboard = () => {
         description: "Share your progress with friends.",
       });
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("crisiscoach_user");
-    navigate("/");
   };
 
   return (
@@ -112,18 +175,18 @@ const Dashboard = () => {
                 <div className="flex flex-col items-center">
                   <Avatar className="w-20 h-20 border-4 border-card shadow-lg">
                     <AvatarFallback className="text-2xl font-bold bg-primary text-primary-foreground">
-                      {user.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                      {profile.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
                     </AvatarFallback>
                   </Avatar>
-                  <h2 className="text-xl font-display font-bold mt-3">{user.name}</h2>
+                  <h2 className="text-xl font-display font-bold mt-3">{profile.name}</h2>
                   <Badge variant="secondary" className="mt-1 capitalize">
-                    {user.role}
+                    {profile.role}
                   </Badge>
                   
                   {/* Level Badge */}
                   <div className={`mt-4 px-4 py-2 rounded-full ${currentLevel.color} flex items-center gap-2`}>
                     <LevelIcon className="w-5 h-5 text-foreground" />
-                    <span className="font-semibold capitalize text-foreground">{user.level} Level</span>
+                    <span className="font-semibold capitalize text-foreground">{progress.level} Level</span>
                   </div>
                 </div>
 
@@ -132,11 +195,11 @@ const Dashboard = () => {
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 rounded-lg bg-muted/50">
-                    <div className="text-2xl font-bold text-primary">{user.score}</div>
+                    <div className="text-2xl font-bold text-primary">{progress.score}</div>
                     <div className="text-xs text-muted-foreground">Total Score</div>
                   </div>
                   <div className="text-center p-3 rounded-lg bg-muted/50">
-                    <div className="text-2xl font-bold text-accent">{user.completedCategories.length}</div>
+                    <div className="text-2xl font-bold text-accent">{progress.completed_categories.length}</div>
                     <div className="text-xs text-muted-foreground">Categories</div>
                   </div>
                 </div>
@@ -145,9 +208,9 @@ const Dashboard = () => {
                 <div className="mt-6">
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-muted-foreground">Progress to {currentLevel.next || "Max"}</span>
-                    <span className="font-medium">{Math.round(progress)}%</span>
+                    <span className="font-medium">{Math.round(Math.min(levelProgress, 100))}%</span>
                   </div>
-                  <Progress value={progress} className="h-2" />
+                  <Progress value={Math.min(levelProgress, 100)} className="h-2" />
                 </div>
 
                 {/* Share Button */}
@@ -169,9 +232,9 @@ const Dashboard = () => {
                   <Star className="w-5 h-5 text-accent" />
                   Earned Medals
                 </h3>
-                {user.medals.length > 0 ? (
+                {progress.medals.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
-                    {user.medals.map((medal, index) => (
+                    {progress.medals.map((medal, index) => (
                       <Badge key={index} className="bg-accent text-accent-foreground">
                         {medal}
                       </Badge>
@@ -194,7 +257,7 @@ const Dashboard = () => {
                 <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                   <div>
                     <h1 className="text-2xl md:text-3xl font-display font-bold mb-2">
-                      Welcome back, {user.name.split(" ")[0]}!
+                      Welcome back, {profile.name.split(" ")[0]}!
                     </h1>
                     <p className="text-muted-foreground">
                       Ready to sharpen your crisis management skills? Choose a category and test your knowledge.
@@ -217,7 +280,7 @@ const Dashboard = () => {
                     <TrendingUp className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <div className="text-2xl font-bold">{user.score}</div>
+                    <div className="text-2xl font-bold">{progress.score}</div>
                     <div className="text-sm text-muted-foreground">Points Earned</div>
                   </div>
                 </CardContent>
@@ -229,7 +292,7 @@ const Dashboard = () => {
                     <Trophy className="w-6 h-6 text-accent" />
                   </div>
                   <div>
-                    <div className="text-2xl font-bold">{user.completedCategories.length}/12</div>
+                    <div className="text-2xl font-bold">{progress.completed_categories.length}/12</div>
                     <div className="text-sm text-muted-foreground">Categories Done</div>
                   </div>
                 </CardContent>
@@ -241,7 +304,7 @@ const Dashboard = () => {
                     <Medal className="w-6 h-6 text-success" />
                   </div>
                   <div>
-                    <div className="text-2xl font-bold">{user.medals.length}</div>
+                    <div className="text-2xl font-bold">{progress.medals.length}</div>
                     <div className="text-sm text-muted-foreground">Medals Won</div>
                   </div>
                 </CardContent>
@@ -260,7 +323,7 @@ const Dashboard = () => {
                     <div 
                       key={index}
                       className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${
-                        player.name === user.name ? "bg-primary/10 border border-primary/20" : "bg-muted/30 hover:bg-muted/50"
+                        player.name === profile.name ? "bg-primary/10 border border-primary/20" : "bg-muted/30 hover:bg-muted/50"
                       }`}
                     >
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
